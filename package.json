@@ -17,5 +17,8 @@
   "scripts": {
     "start": "r3f-pack start",
     "build": "r3f-pack build"
+  },
+  "dependencies": {
+    "gsap": "^3.12.7"
   }
 }
