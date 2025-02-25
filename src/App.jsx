@@ -1,7 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Stats, OrbitControls } from '@react-three/drei'
-import { BackSide, VideoTexture, ClampToEdgeWrapping, LinearFilter } from 'three'
+import { BackSide, VideoTexture, ClampToEdgeWrapping, LinearFilter, Raycaster, Vector2 } from 'three'
 import { create } from 'zustand'
 import JEASINGS from 'jeasings'
 import gsap from 'gsap'
@@ -10,8 +10,9 @@ const useStore = create((set) => ({
   position: [70, 100, 70],
   fov: 110,
   progress: 0,
-  setParameters: (position, fov, progress) => set({ position, fov, progress }),
-  resetView: () => set({ position: [70, 100, 70], fov: 110, progress: 0 }),
+  isPanorama: false,
+  setParameters: (position, fov, progress, isPanorama) => set({ position, fov, progress, isPanorama }),
+  resetView: () => set({ position: [70, 100, 70], fov: 110, progress: 0, isPanorama: false }),
 }))
 
 function Sphere() {
@@ -19,7 +20,7 @@ function Sphere() {
 
   useEffect(() => {
     const video = videoRef.current
-    video.src = '/img/1.mp4'
+    video.src = '/img/2.mp4'
     video.loop = true
     video.muted = true
     video.play()
@@ -33,7 +34,7 @@ function Sphere() {
   videoTexture.generateMipmaps = false
 
   return (
-    <mesh scale={[1, 1, 1]}>
+    <mesh scale={[1, 1, 1]} name="panorama">
       <sphereGeometry args={[100, 128, 128]} />
       <meshBasicMaterial map={videoTexture} side={BackSide} />
     </mesh>
@@ -47,28 +48,63 @@ function JEasings() {
 }
 
 function Camera() {
-  const { camera } = useThree()
-  const { position, fov } = useStore()
+  const { camera, scene } = useThree()
+  const { position, fov, isPanorama } = useStore()
   const mouse = useRef({ x: 0, y: 0 })
+  const raycaster = useRef(new Raycaster())
+  const pointer = useRef(new Vector2())
 
   useEffect(() => {
     const handleMouseMove = (event) => {
+      if (isPanorama) return // Disable movement in panorama mode
+
       const { innerWidth, innerHeight } = window
-      const x = (event.clientX / innerWidth - 0.5) * 2 // Normalize to [-1, 1]
-      const y = -(event.clientY / innerHeight - 0.5) * 2 // Normalize to [-1, 1] (inverted for natural movement)
+      const x = (event.clientX / innerWidth - 0.5) * 2
+      const y = -(event.clientY / innerHeight - 0.5) * 2
       mouse.current = { x, y }
 
       gsap.to(camera.position, {
-        x: position[0] - x * 5, // Adjust intensity
-        y: position[1] + y * 5, // Adjust intensity
+        x: position[0] - x * 5,
+        y: position[1] + y * 5,
         duration: 0.8,
         ease: 'power2.out',
       })
     }
 
+    const handleClick = (event) => {
+      if (isPanorama) return // Already in panorama mode
+
+      pointer.current.x = (event.clientX / window.innerWidth) * 2 - 1
+      pointer.current.y = -(event.clientY / window.innerHeight) * 2 + 1
+
+      raycaster.current.setFromCamera(pointer.current, camera)
+      const intersects = raycaster.current.intersectObjects(scene.children)
+
+      if (intersects.length > 0 && intersects[0].object.name === 'panorama') {
+        gsap.to(camera.position, {
+          x: 0,
+          y: 0,
+          z: 0.1, // Very close to the sphere
+          duration: 1.2,
+          ease: 'power2.out',
+        })
+        gsap.to(camera, {
+          fov: 80,
+          duration: 1.2,
+          ease: 'power2.out',
+          onUpdate: () => camera.updateProjectionMatrix(),
+        })
+        useStore.setState({ isPanorama: true })
+      }
+    }
+
     window.addEventListener('mousemove', handleMouseMove)
-    return () => window.removeEventListener('mousemove', handleMouseMove)
-  }, [position, fov])
+    window.addEventListener('click', handleClick)
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('click', handleClick)
+    }
+  }, [position, fov, isPanorama])
 
   useEffect(() => {
     gsap.to(camera.position, {
@@ -95,6 +131,8 @@ function ScrollHandler() {
   useEffect(() => {
     const handleWheel = (event) => {
       event.preventDefault()
+      if (useStore.getState().isPanorama) return // Disable scroll in panorama mode
+
       const delta = event.deltaY * 0.0005
       const newProgress = Math.min(Math.max(progressRef.current + delta, 0), 1)
       progressRef.current = newProgress
@@ -111,7 +149,7 @@ function ScrollHandler() {
         duration: 1.2,
         ease: 'power2.out',
         onUpdate: () => {
-          setParameters(newPosition, newFov, progressRef.current)
+          setParameters(newPosition, newFov, progressRef.current, false)
         }
       })
     }
@@ -140,6 +178,7 @@ function ResetButton() {
           position: [70, 100, 70],
           fov: 110,
           progress: 0,
+          isPanorama: false,
           duration: 1.5,
           ease: 'power2.out',
           onUpdate: () => {
@@ -171,7 +210,7 @@ export default function App() {
       <Canvas camera={{ position: [70, 100, 70], fov: 110 }}>
         <Sphere />
         <Camera />
-        <OrbitControls enablePan={false} enableZoom={false} />
+        <OrbitControls enablePan={false} enableZoom={true} minDistance={10} maxDistance={150} />
         <JEasings />
         <Stats />
       </Canvas>
