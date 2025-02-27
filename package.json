@@ -19,6 +19,7 @@
     "build": "r3f-pack build"
   },
   "dependencies": {
-    "gsap": "^3.12.7"
+    "gsap": "^3.12.7",
+    "leva": "^0.10.0"
   }
 }
