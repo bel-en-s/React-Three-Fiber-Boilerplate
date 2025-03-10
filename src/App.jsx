@@ -1,8 +1,10 @@
 import { Canvas, useThree } from "@react-three/fiber";
 import { useState, useRef } from "react";
-import { Leva } from "leva";
 import { gsap } from "gsap";
-import Marco from "./Marco"; // Import Marco component
+
+import Pared from "./Pared";
+import Marco from "./Marco";
+
 
 const CameraController = ({ lightColor, setLightColor }) => {
   const { camera } = useThree();
@@ -52,12 +54,12 @@ export default function App() {
 
   return (
     <>
-      <Canvas
-        camera={{ position: [40.34, 95.12, 284.57], fov: 50 }}
-        style={{ backgroundImage: 'url(/image.jpg)', backgroundSize: 'cover' }}
-      >
-        <CameraController lightColor={lightColor} setLightColor={setLightColor} />
-      </Canvas>
+     <Canvas camera={{ position: [40.34, 95.12, 284.57], fov: 50 }}>
+  <CameraController lightColor={lightColor} setLightColor={setLightColor} />
+  
+  <Marco />
+  <Pared textureUrl="/wall-texture.jpg" position={[0, 0, -5]} />
+</Canvas>
     </>
   );
 }
